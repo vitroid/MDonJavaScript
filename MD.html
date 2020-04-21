@@ -169,7 +169,6 @@ mouse (or with your finger on a touch-screen device).</p>
     var mobile = navigator.userAgent.match(/iPhone|iPad|iPod|Android|BlackBerry|Opera Mini|IEMobile/i)
     var nMax = Number(nSlider.max);                // maximum number of molecules
     var N = 0;                                    // current number of molecules
-    var wallStiffness = 50;                        // spring constant for bouncing off walls
     var forceCutoff = 3.0;                        // distance beyond which we set force=0
     var forceCutoff2 = forceCutoff*forceCutoff;
     var pEatCutoff = 4 * (Math.pow(forceCutoff,-12) - Math.pow(forceCutoff,-6));
@@ -247,6 +246,14 @@ mouse (or with your finger on a touch-screen device).</p>
         for (var i=0; i<N; i++) {
             x[i] += vx[i]*dt + ax[i]*halfdtsquared;
             y[i] += vy[i]*dt + ay[i]*halfdtsquared;
+	    if ( x[i] < 0.0 )
+		x[i] += boxWidth;
+	    else if ( x[i] >= boxWidth )
+		x[i] -= boxWidth;
+	    if ( y[i] < 0.0 )
+		y[i] += boxWidth;
+	    else if ( y[i] >= boxWidth )
+		y[i] -= boxWidth;
             vx[i] += ax[i]*halfdt;
             vy[i] += ay[i]*halfdt;
         }
@@ -260,42 +267,31 @@ mouse (or with your finger on a touch-screen device).</p>
     // Compute accelerations of all molecules:
     function computeAccelerations() {
         var dx, dy, dx2, dy2, rSquared, rSquaredInv, attract, repel, fOverR, fx, fy;
-        var wallForce = 0.0;
         potentialE = 0.0;
-        // first check for bounces off walls:
-        for (var i=0; i<N; i++) {
-            if (x[i] < 0.5) {
-                ax[i] = wallStiffness * (0.5 - x[i]);
-                wallForce += ax[i];
-                potentialE += 0.5 * wallStiffness * (0.5-x[i]) * (0.5-x[i]);
-            } else
-                if (x[i] > (boxWidth - 0.5)) {
-                    ax[i] = wallStiffness * (boxWidth - 0.5 - x[i]);
-                    wallForce -= ax[i];
-                    potentialE += 0.5 * wallStiffness * (boxWidth-0.5-x[i]) * (boxWidth-0.5-x[i]);
-                } else
-                    ax[i] = 0.0;
-            if (y[i] < 0.5) {
-                ay[i] = (wallStiffness * (0.5 - y[i]));
-                wallForce += ay[i];
-                potentialE += 0.5 * wallStiffness * (0.5-y[i]) * (0.5-y[i]);
-            } else
-                if (y[i] > (boxWidth - 0.5)) {
-                    ay[i] = (wallStiffness * (boxWidth - 0.5 - y[i]));
-                    wallForce -= ay[i];
-                    potentialE += 0.5 * wallStiffness * (boxWidth-0.5-y[i]) * (boxWidth-0.5-y[i]);
-                } else
-                    ay[i] = 0;
-        }
-        pressure = wallForce / (4*boxWidth);    // instantaneous pressure
-        
+	//pressure must be calculated from virial.
+        //pressure = wallForce / (4*boxWidth);    // instantaneous pressure
+        pressure = 0.0;
+	for (var i=0; i<N; i++){
+	    ax[i] = 0.0;
+	    ay[i] = 0.0;
+	}
         // now compute interaction forces (Lennard-Jones potential):
         for (var i=0; i<N; i++) {
             for (var j=0; j<i; j++) {
                 dx = x[i] - x[j];
+		//dx -= Math.floor( dx / boxWidth + 0.5 ) * boxWidth; //PBC
+		if ( dx > boxWidth*0.5 )
+		    dx -= boxWidth;
+		else if ( dx < -boxWidth*0.5 )
+		    dx += boxWidth;
                 dx2 = dx * dx;
                 if (dx2 < forceCutoff2) {  // make sure they're close enough to bother
                     dy = y[i] - y[j];
+		    //dy -= Math.floor( dy / boxWidth + 0.5 ) * boxWidth; //PBC; floor is slow.
+		    if ( dy > boxWidth*0.5 )
+			dy -= boxWidth;
+		    else if ( dy < -boxWidth*0.5 )
+			dy += boxWidth;
                     dy2 = dy * dy;
                     if (dy2 < forceCutoff2) {
                         rSquared = dx2 + dy2;
