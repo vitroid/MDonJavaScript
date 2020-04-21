@@ -1,0 +1,598 @@
+<!DOCTYPE HTML>
+<!--
+	A molecular dynamics simulation in JavaScript, using HTML5 canvas for graphics
+	
+	Copyright 2013, Daniel V. Schroeder
+	
+	Permission is hereby granted, free of charge, to any person obtaining a copy of 
+	this software and associated data and documentation (the "Software"), to deal in 
+	the Software without restriction, including without limitation the rights to 
+	use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies 
+	of the Software, and to permit persons to whom the Software is furnished to do 
+	so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all 
+	copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+	INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
+	PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR 
+	ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
+	OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR 
+	OTHER DEALINGS IN THE SOFTWARE.
+
+	Except as contained in this notice, the name of the author shall not be used in 
+	advertising or otherwise to promote the sale, use or other dealings in this 
+	Software without prior written authorization.
+	
+	Revision history:
+	Original Java version December 2007, additional features June 2008
+	Bare-bones HTML5/JavaScript version February 2013
+	Added more interactivity (sliders, mouse/touch) October 2013
+-->
+<html>
+
+<head>
+<title>Molecular Dynamics Demo</title>
+<style>
+	body {background-color:#ffffff; font-size:15px; font-family:Arial, sans-serif;}
+	p {margin-left:auto; margin-right:auto; width:730px;}	/* keep paragraphs narrow and centered */
+	input[type=button] {width:100px; height:25px; font-family:Arial, sans-serif; font-size:16px;}					/* makes buttons bigger */
+	input[type=range] {width:210px;}
+	input[type=text] {background-color:#e0e0e0; border:0px}	/* these are read-only so style as plain text */
+</style>
+</head>
+
+<body>
+
+<!--Here's the HTML to create the canvas, text, and GUI controls...-->
+<h2 style="text-align:center; margin-bottom:8px;">Molecular Dynamics</h2>
+
+<p style="text-align:center; margin-top:0;">By <a href="http://physics.weber.edu/schroeder/">Daniel V. Schroeder</a>, 
+<a href="http://physics.weber.edu">Physics Department</a>, 
+<a href="http://weber.edu">Weber State University</a></hp>
+
+<div id="mainDiv" style="width:730px; margin-left:auto; margin-right:auto; background-color:#dddddd; border:5px solid #dddddd;">
+
+	<div id="canvasDiv" style="float:left; width:500px;">
+		<canvas id="theCanvas" width="500" height="500"></canvas>
+	</div>
+
+	<div id="controlPanel" style="float:right; width:220px; margin-left:10px; text-align:center;">
+		<div>
+			<input id="startButton" type="button" onclick="startStop()" value="Start">
+			<input id="stepButton" type="button" onclick="simulate()" value="Step">
+		</div>
+		<div>
+			<input id="fastButton" type="button" onclick="speedFactor(1.1)" value="Heat">
+			<input id="slowButton" type="button" onclick="speedFactor(0.9)" value="Cool">
+		</div>
+		<div>
+			<input id="fastButton" type="button" onclick="speedFactor(0)" value="Freeze">
+			<input id="reverseButton" type="button" onclick="speedFactor(-1)" value="Reverse">
+		</div>
+		<div>
+			<input id="restartButton" type="button" onclick="restart()" value="Restart">
+		</div>
+		<div>
+			<input id="resetButton" type="button" onclick="reset()" value="Reset stats">
+		</div>
+		<div style="margin-top:8px; text-align:left;">Number of atoms = <span id="nReadout">250</span></div>
+		<div>
+			<input id="nSlider" type="range" min="1" max="1000" value="250" oninput="changeN()" onchange="changeN()">
+		</div>
+		<div style="margin-top:6px; text-align:left;">Atom size = <span id="sizeReadout"></span></div>
+		<div>
+			<input id="sizeSlider" type="range" min="5" max="100" value="10" oninput="changeSize()" onchange="changeSize()">
+		</div>
+		<div style="margin-top:6px; text-align:left;">Gravity = <span id="gravReadout">0.000</span></div>
+		<div>
+			<input id="gravSlider" type="range" min="0" max="0.1" step="0.001" value="0"  oninput="changeGrav()" onchange="changeGrav()">
+		</div>
+		<div style="margin-top:6px; text-align:left;">Time step = <span id="dtReadout">0.020</span></div>
+		<div>
+			<input id="dtSlider" type="range" min="0.001" max="0.04" step="0.001" value="0.02"  oninput="changedt()" onchange="changedt()">
+		</div>
+		<div style="margin-top:6px; text-align:left;">Steps per frame = <span id="stepsReadout">25</span></div>
+		<div>
+			<input id="stepsSlider" type="range" min="1" max="100" value="25" oninput="changeSteps()" onchange="changeSteps()">
+		</div>
+		<div style="margin-top:6px;">
+			Molecules: 
+			<select id="mColorSelect" onchange="paintCanvas()" style="font-size:16px;">
+				<option value="#6400c8">Purple</option>
+				<option value="#00ff00">Green</option>
+				<option value="#ffff00">Yellow</option>
+				<option value="#ff8000">Orange</option>
+				<option value="#ff0000">Red</option>
+				<option value="#ff00ff">Magenta</option>
+				<option value="#00ffff">Cyan</option>
+				<option value="#0000ff">Blue</option>
+				<option value="#006432">Forest</option>
+				<option value="#000000">Black</option>
+				<option value="#ffffff">White</option>
+				<option>Random</option>
+				<option selected>By speed</option>
+			</select>
+		</div>
+		<div>
+			Background: 
+			<select id="bgColorSelect" onchange="paintCanvas()" style="font-size:16px;">
+				<option value="#ffffff">White</option>
+				<option value="#fff5e6">Beige</option>
+				<option value="#ffe1f5">Pink</option>
+				<option value="#e6e6ff">Sky</option>
+				<option value="#000048">Navy</option>
+				<option value="#320000">Brown</option>
+				<option value="#3c3c3c">Gray</option>
+				<option value="#000000" selected>Black</option>
+			</select>
+		</div>
+		<div style="margin-top:8px;">Steps per second: <span id="speedReadout">0</span></div>
+	</div>
+	<div style="clear:both;" id="dataReadout">&nbsp;</div>
+	<div id="energyReadout">&nbsp;</div>
+</div>
+
+
+<p>This is a rudimentary molecular dynamics simulation in HTML5/JavaScript,
+with some of the same features as
+<a href="http://physics.weber.edu/schroeder/software/MDApplet.html">this Java version</a>.
+I hope to improve this version over time until it eventually makes the Java version superfluous,
+but I can't predict when that will happen. Meanwhile, it still has plenty of rough edges. 
+Be careful with the "Atom size" slider! If the simulation becomes unstable, just hit the Restart button.
+Notice that you can drag the atoms around with the 
+mouse (or with your finger on a touch-screen device).</p>
+
+<p>An even more rudimentary version, useful mainly for benchmarking, is 
+<a href="http://physics.weber.edu/schroeder/software/demos/MolecularDynamics.html">here</a>.</p>
+
+
+<script>	// And here's the JavaScript to bring it to life...
+
+	// DOM elements:
+	var canvas = document.getElementById('theCanvas');
+	var context = canvas.getContext('2d');
+	var dataReadout = document.getElementById('dataReadout');
+	var energyReadout = document.getElementById('energyReadout');
+	var startButton = document.getElementById('startButton');
+	var nReadout = document.getElementById('nReadout');
+	var nSlider = document.getElementById('nSlider');
+	var sizeReadout = document.getElementById('sizeReadout');
+	var sizeSlider = document.getElementById('sizeSlider');
+	var gravReadout = document.getElementById('gravReadout');
+	var gravSlider = document.getElementById('gravSlider');
+	var dtReadout = document.getElementById('dtReadout');
+	var dtSlider = document.getElementById('dtSlider');
+	var stepsReadout = document.getElementById('stepsReadout');
+	var stepsSlider = document.getElementById('stepsSlider');
+	var mColorSelect = document.getElementById('mColorSelect');
+	var bgColorSelect = document.getElementById('bgColorSelect');
+	var speedReadout = document.getElementById('speedReadout');
+
+	// Miscellaneous global variables:
+	var mobile = navigator.userAgent.match(/iPhone|iPad|iPod|Android|BlackBerry|Opera Mini|IEMobile/i)
+	var nMax = Number(nSlider.max);				// maximum number of molecules
+	var N = 0;									// current number of molecules
+	var wallStiffness = 50;						// spring constant for bouncing off walls
+	var forceCutoff = 3.0;						// distance beyond which we set force=0
+	var forceCutoff2 = forceCutoff*forceCutoff;
+	var pEatCutoff = 4 * (Math.pow(forceCutoff,-12) - Math.pow(forceCutoff,-6));
+	var potentialE;								// potential energy
+	var pressure;								// instantaneous P, computed each step
+	var totalT, totalP, sampleCount;			// variables for computing average T and P
+	var pxPerUnit = 1;							// molecule diameter in pixels (dummy value until init)
+	var boxWidth = canvas.width / pxPerUnit;	// width of box in natural units
+	var running = false;						// will be true when running
+	var stepCount = 0;
+	var startTime = 0;
+	var selectedAtom = 0;						// index of selected atom
+	var dragging = false;						// true when mouse (or touch) is down
+	var mouseX, mouseY;							// mouse coordinates in physics units (valid when dragging)
+
+	// Arrays of atoms' positions, velocities, and accelerations:
+	var  x = new Array(nMax),  y = new Array(nMax);
+	var vx = new Array(nMax), vy = new Array(nMax);
+	var ax = new Array(nMax), ay = new Array(nMax);
+	var atomColor = new Array(nMax);	// and colors!
+
+	// Carefully constructed list of colors for indicating speeds:
+	var speedColorList = ['#1400b4','#3c00aa','#5000a0','#640096','#780078','#8c0050','#a00000',
+						  '#b40000','#c80000','#e60000','#ff0000','#ff3c00','#ff5a00','#ff7800',
+						  '#ff9600','#ffb400','#ffd200','#ffe600','#ffff00','#ffff78'];
+
+	// Mysterious incantation that sometimes helps for smooth animation:
+	window.requestAnimFrame = (function(callback) {
+	return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame ||
+		function(callback) {
+			window.setTimeout(callback, 1);		// second parameter is time in ms
+		};
+	})();
+
+	window.onload = init;
+
+	// Initializations
+	function init() {
+		if (mobile) sizeSlider.value = "16"; else sizeSlider.value = "10";
+		if (mobile) nSlider.value = "80"; else nSlider.value = "250";
+		changeSize();
+		changeN();
+		canvas.addEventListener('mousedown', mouseDown, false);
+		document.body.addEventListener('mousemove', mouseMove, false);
+		document.body.addEventListener('mouseup', mouseUp, false);	// button release could occur outside canvas
+		canvas.addEventListener('touchstart', mouseDown, false);
+		document.body.addEventListener('touchmove', mouseMove, false);
+		document.body.addEventListener('touchend', mouseUp, false);
+	}
+
+	// Simulate function executes a bunch of steps and then schedules another call to itself:
+	function simulate() {
+		// Execute a bunch of time steps:
+		var stepsPerFrame = Number(stepsSlider.value);
+		for (var step=0; step<stepsPerFrame; step++) {
+			doStep();
+		}
+		paintCanvas();
+		stepCount += stepsPerFrame;
+		computeStats();
+		var elapsedTime = ((new Date()).getTime() - startTime) / 1000;	// time in seconds
+		speedReadout.innerHTML = Number(stepCount/elapsedTime).toFixed(0);
+		if (running) {
+			// schedule the next animation frame:
+			//requestAnimFrame(function() { simulate(); });		// limits the frame rate
+			window.setTimeout(simulate, 1);					// runs as fast as possible
+		}
+	}
+
+	// Execute a single time step (Verlet algorithm):
+	function doStep() {
+		var dt = Number(dtSlider.value);
+		var halfdt = 0.5 * dt;
+		var halfdtsquared = halfdt * dt;
+		for (var i=0; i<N; i++) {
+			x[i] += vx[i]*dt + ax[i]*halfdtsquared;
+			y[i] += vy[i]*dt + ay[i]*halfdtsquared;
+			vx[i] += ax[i]*halfdt;
+			vy[i] += ay[i]*halfdt;
+		}
+		computeAccelerations();
+		for (var i=0; i<N; i++) {
+			vx[i] += ax[i]*halfdt;
+			vy[i] += ay[i]*halfdt;
+		}
+	}
+
+	// Compute accelerations of all molecules:
+	function computeAccelerations() {
+		var dx, dy, dx2, dy2, rSquared, rSquaredInv, attract, repel, fOverR, fx, fy;
+		var g = Number(gravSlider.value);
+		var wallForce = 0.0;
+		potentialE = 0.0;
+        // first check for bounces off walls:
+		for (var i=0; i<N; i++) {
+			if (x[i] < 0.5) {
+				ax[i] = wallStiffness * (0.5 - x[i]);
+				wallForce += ax[i];
+				potentialE += 0.5 * wallStiffness * (0.5-x[i]) * (0.5-x[i]);
+			} else
+				if (x[i] > (boxWidth - 0.5)) {
+					ax[i] = wallStiffness * (boxWidth - 0.5 - x[i]);
+					wallForce -= ax[i];
+					potentialE += 0.5 * wallStiffness * (boxWidth-0.5-x[i]) * (boxWidth-0.5-x[i]);
+				} else
+					ax[i] = 0.0;
+			if (y[i] < 0.5) {
+				ay[i] = (wallStiffness * (0.5 - y[i]));
+				wallForce += ay[i];
+				potentialE += 0.5 * wallStiffness * (0.5-y[i]) * (0.5-y[i]);
+			} else
+				if (y[i] > (boxWidth - 0.5)) {
+					ay[i] = (wallStiffness * (boxWidth - 0.5 - y[i]));
+					wallForce -= ay[i];
+					potentialE += 0.5 * wallStiffness * (boxWidth-0.5-y[i]) * (boxWidth-0.5-y[i]);
+				} else
+					ay[i] = 0;
+			ay[i] -= g;				// add gravity if any
+		}
+		pressure = wallForce / (4*boxWidth);	// instantaneous pressure
+		
+        // now compute interaction forces (Lennard-Jones potential):
+		for (var i=0; i<N; i++) {
+			for (var j=0; j<i; j++) {
+                dx = x[i] - x[j];
+                dx2 = dx * dx;
+				if (dx2 < forceCutoff2) {  // make sure they're close enough to bother
+                    dy = y[i] - y[j];
+                    dy2 = dy * dy;
+					if (dy2 < forceCutoff2) {
+                        rSquared = dx2 + dy2;
+						if (rSquared < forceCutoff2) {
+                            rSquaredInv = 1.0 / rSquared;
+                            attract = rSquaredInv * rSquaredInv * rSquaredInv;
+                            repel = attract * attract;
+							potentialE += (4.0 * (repel - attract)) - pEatCutoff;
+                            fOverR = 24.0 * ((2.0 * repel) - attract) * rSquaredInv;
+                            fx = fOverR * dx;
+                            fy = fOverR * dy;
+                            ax[i] += fx;  // add this force on to i's acceleration (m = 1)
+                            ay[i] += fy;
+                            ax[j] -= fx;  // Newton's 3rd law
+                            ay[j] -= fy;
+						}
+					}
+				}
+			}
+		}
+
+		// if we're pulling on an atom it feels an elastic force toward mouse location:
+		if (dragging) {
+			var pullStrength = 1.0;			// spring constant
+			dx = mouseX - x[selectedAtom];
+			dy = mouseY - y[selectedAtom];
+			ax[selectedAtom] += pullStrength * dx;
+			ay[selectedAtom] += pullStrength * dy;
+		}
+	}	// end of function computeAccelerations
+
+	// Compute the energies, temperature, and pressure for the data readout:
+	function computeStats() {
+		var kineticE = 0;
+		var gravitationalE = 0;
+		var g = Number(gravSlider.value);
+		for (var i=0; i<N; i++) {
+			kineticE += 0.5 * (vx[i]*vx[i] + vy[i]*vy[i]);
+			gravitationalE += g * y[i];
+		}
+		var totalE = kineticE + potentialE + gravitationalE;
+		energyReadout.innerHTML = "E = " + totalE.toFixed(2) + ", KE = " + kineticE.toFixed(2) +
+			", PE = " + potentialE.toFixed(2) + ", GE = " + gravitationalE.toFixed(2);
+		sampleCount++;
+		totalT += kineticE / N;
+		totalP += pressure;
+		var T = totalT / sampleCount;
+		var P = totalP / sampleCount;
+		var V = boxWidth * boxWidth;
+		dataReadout.innerHTML = "T = " + T.toFixed(4) + ", P = " + P.toFixed(4) + 
+			", V = " + V.toFixed(0);
+	}
+
+	// Function to reset the averages for temperature and pressure:
+	function reset() {
+		totalT = 0.0; totalP = 0.0; sampleCount = 0;
+	}
+
+	// Mouse/touch event handlers:
+	function mouseDown(e) {
+		var canvasX = e.pageX - canvas.offsetLeft;	// pixel coordinates relative to canvas
+		var canvasY = e.pageY - canvas.offsetTop;
+		mouseX = canvasX / pxPerUnit;				// mouse coordinates in physics units
+		mouseY = (canvas.height - canvasY) / pxPerUnit;
+		//console.log("x = " + mX + ", y = " + mY);
+		var radius2 = 0.55 * 0.55;		// square of atom's radius, plus a bit to be generous
+		var found = false;				// will be true if/when we find an atom under mouse
+		var i = 0;
+		while (i < N) {
+			var dx = x[i] - mouseX;
+			var dy = y[i] - mouseY;
+			if (dx*dx + dy*dy < radius2) {
+				found = true;
+				break;
+			}
+			i++;
+		}
+		if (found) {
+			e.preventDefault();
+			dragging = true;
+			selectedAtom = i;
+			paintCanvas();
+		} else {
+			dragging = false;
+		}
+	}
+	
+	function mouseMove(e) {
+		if (dragging) {
+			e.preventDefault();
+			var canvasX = e.pageX - canvas.offsetLeft;	// pixel coordinates relative to canvas
+			var canvasY = e.pageY - canvas.offsetTop;
+			mouseX = canvasX / pxPerUnit;				// mouse coordinates in physics units
+			mouseY = (canvas.height - canvasY) / pxPerUnit;
+			if (!running) {
+				x[selectedAtom] = mouseX;
+				y[selectedAtom] = mouseY;
+				// Still need to check if dragged out of bounds, in which case delete atom
+				paintCanvas();
+			}
+		}
+	}
+	
+	function mouseUp(e) {
+		dragging = false;
+	}
+
+	// Function to restart, placing all the molecules in rows:
+	function restart() {
+		N = 0;
+		changeN();
+	}
+
+	// Change number of atoms in response to slider adjustment:
+	function changeN() {
+		var newN = Number(nSlider.value);
+		if (newN < N) {
+			N = newN;
+		}
+		if (newN > N) {
+			for (var atom=N; atom<newN; atom++) addAtom();
+			nSlider.value = N;
+		}
+		nReadout.innerHTML = N;
+		computeAccelerations();
+		reset();
+		if (selectedAtom >= N) selectedAtom = 0;
+		paintCanvas();
+	}
+
+	// Change the size of the atoms:
+	function changeSize() {
+		var newSize = Number(sizeSlider.value);
+		if (newSize != pxPerUnit) {
+			var sizeRatio = pxPerUnit / newSize;
+			for (var atom=0; atom<N; atom++) {
+				x[atom] *= sizeRatio;
+				y[atom] *= sizeRatio;
+			}
+			pxPerUnit = newSize;
+			boxWidth = canvas.width / pxPerUnit;
+			sizeReadout.innerHTML = newSize;
+			paintCanvas();
+			reset();
+		}
+	}
+
+	// Change the gravity setting:
+	function changeGrav() {
+		gravReadout.innerHTML = Number(gravSlider.value).toFixed(3);
+		reset();
+	}
+
+	// Change the dt setting:
+	function changedt() {
+		dtReadout.innerHTML = Number(dtSlider.value).toFixed(3);
+	}
+
+	// Change the number of steps per frame:
+	function changeSteps() {
+		stepsReadout.innerHTML = stepsSlider.value;
+	}
+
+	// Functions to convert rgb to hex color string (from stackoverflow):
+	function componentToHex(c) {
+		var hex = c.toString(16);
+		return hex.length == 1 ? "0" + hex : hex;
+	}
+	function rgbToHex(r, g, b) {
+		return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+	}
+
+	// Add one atom to the simulation (if there's room):
+	function addAtom() {
+		var buffer = 1.3;		// minimum space required between molecule centers
+		var epsilon = 0.01;		// small distance
+		if (N == nMax) return;		// quit if max number of molecules is already reached
+		var xTest = buffer / 2;	// start looking for space at lower-left corner
+		var yTest = buffer / 2;
+		while (true) {	// this loop actually does terminate, when one or the other "return" statement is reached
+			var spaceOpen = true;	// temporarily assume this space is available
+			for (var i=0; i<N; i++) {	// check all other molecules to see if any are too close
+				if ((Math.abs(x[i]-xTest) < buffer-epsilon) && (Math.abs(y[i]-yTest) < buffer-epsilon)) {
+					spaceOpen = false;
+					break;
+				}
+			}
+			if (spaceOpen) {
+				x[N] = xTest + (Math.random()-.5)*epsilon; // random nudge is to avoid too much symmetry
+				y[N] = yTest + (Math.random()-.5)*epsilon;
+				vx[N] = 0; vy[N] = 0;
+				ax[N] = 0; ay[N] = 0;
+				var hue = Math.random();
+				var r, g, b;
+				if (hue < 1/6) {
+					r = 255; g = Math.round(hue*6*255); b = 0;			// red to yellow
+				} else if (hue < 1/3) {
+					r = Math.round((1/3 - hue)*6*255); g = 255; b = 0;	// yellow to green
+				} else if (hue < 1/2) {
+					r = 0; g = 255; b = Math.round((hue - 1/3)*6*255);	// green to cyan
+				} else if (hue < 2/3) {
+					r = 0; g = Math.round((2/3 - hue)*6*255); b = 255;	// cyan to blue
+				} else if (hue < 5/6) {
+					r = Math.round((hue - 2/3)*6*255); g = 0; b = 255;	// blue to magenta
+				} else {
+					r = 255; g = 0; b = Math.round((1 - hue)*6*255);	// magenta to red
+				}
+				atomColor[N] = rgbToHex(r,g,b);
+				N++;
+				return;
+			} else {		// if this space isn't open, try the next...
+				xTest += buffer;
+				if (xTest + buffer/2 > boxWidth) {
+					xTest = buffer/2;
+					yTest += buffer;
+					if (yTest + buffer/2 > boxWidth) return;
+				}
+			}
+		}
+	}
+
+	// Clear the canvas and draw all the molecules:
+	function paintCanvas() {
+		context.fillStyle = bgColorSelect.options[bgColorSelect.selectedIndex].value;	// background color from user selection
+		context.fillRect(0, 0, canvas.width, canvas.height);
+		var theColorOption = mColorSelect.options[mColorSelect.selectedIndex];
+		var randomColor = false;
+		var speedColor = false;
+		var speedLimit = 3.0;		// speed for high end of speedColorList
+		if (theColorOption.text == "By speed") { speedColor = true; } 
+			else if (theColorOption.text == "Random") { randomColor = true; } 
+			else { context.fillStyle = theColorOption.value; }		// color from user selection
+		for (var i=0; i<N; i++) {
+			var pixelX = x[i] * pxPerUnit;
+			var pixelY = canvas.height - (y[i] * pxPerUnit);
+			if (speedColor) {
+				var speed = Math.sqrt(vx[i]*vx[i] + vy[i]*vy[i]);
+				if (speed > speedLimit) {
+					context.fillStyle = speedColorList[speedColorList.length-1];
+				} else {
+					context.fillStyle = speedColorList[Math.floor(speed*speedColorList.length/speedLimit)];
+				}
+			}
+			if (randomColor) {
+				context.fillStyle = atomColor[i];
+			}
+			context.beginPath();
+			context.arc(pixelX, pixelY, pxPerUnit/2, 0, 2*Math.PI);
+			context.fill();
+		}
+		// Now redraw selected atom in a different color:
+		/*context.fillStyle = '#ff8000';		// orange
+		var pixelX = x[selectedAtom] * pxPerUnit;
+		var pixelY = canvas.height - (y[selectedAtom] * pxPerUnit);
+		context.beginPath();
+		context.arc(pixelX, pixelY, pxPerUnit/2, 0, 2*Math.PI);
+		context.fill();*/
+		if ((running) && (dragging)) {
+			context.strokeStyle = "#808080";	// gray
+			context.lineWidth = 2;
+			context.beginPath();
+			context.moveTo(x[selectedAtom]*pxPerUnit, canvas.height-(y[selectedAtom]*pxPerUnit));
+			context.lineTo(mouseX*pxPerUnit, canvas.height-(mouseY*pxPerUnit));
+			context.stroke();
+		}
+	}
+
+	// Function to start or pause the simulation:
+	function startStop() {
+		running = !running;
+		if (running) {
+			startButton.value = " Pause ";
+			stepCount = 0;
+			startTime = (new Date()).getTime();
+			simulate();
+		} else {
+			startButton.value = "Resume";
+		}
+	}
+
+	// Function to change all speeds by a given factor (called by button presses):
+	function speedFactor(factor) {
+		for (var i=0; i<N; i++) {
+			vx[i] *= factor;
+			vy[i] *= factor;
+		}
+		reset();
+	}
+
+</script>
+    
+</body>
+</html>
